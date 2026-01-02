@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=David+Libre:wght@500&display=swap');
+
+.canvas-container {
+  position: relative;
+  isolation: isolate;
+}
+
+.countdown-container {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: calc(100% + 40px);
+  height: calc(100% + 40px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  animation: chaosBlur 2s infinite alternate;
+  overflow: hidden;
+}
+
+.countdown-container::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: chaosBlurIntensity 1.5s infinite alternate;
+}
+
+@keyframes chaosBlur {
+  0% {
+    transform: translate(-5px, -5px);
+    border-radius: 25px 35px 25px 35px;
+  }
+  25% {
+    transform: translate(5px, -3px);
+    border-radius: 35px 25px 35px 25px;
+  }
+  50% {
+    transform: translate(-3px, 5px);
+    border-radius: 25px 35px 35px 25px;
+  }
+  75% {
+    transform: translate(5px, 3px);
+    border-radius: 35px 25px 25px 35px;
+  }
+  100% {
+    transform: translate(-5px, 5px);
+    border-radius: 30px;
+  }
+}
+
+@keyframes chaosBlurIntensity {
+  0% {
+    backdrop-filter: blur(8px) contrast(1.1);
+    -webkit-backdrop-filter: blur(8px) contrast(1.1);
+  }
+  50% {
+    backdrop-filter: blur(12px) contrast(1);
+    -webkit-backdrop-filter: blur(12px) contrast(1);
+  }
+  100% {
+    backdrop-filter: blur(10px) contrast(1.2);
+    -webkit-backdrop-filter: blur(10px) contrast(1.2);
+  }
+}
+
+.countdown {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.countdown .number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.countdown .number h2 {
+  margin: 0;
+  padding: 0;
+  font-size: 120px;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-family: 'David Libre', serif;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+  border-radius: 50%;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  border: 4px solid #fff;
+  transition: all 0.3s ease-in-out;
+}
+
+.countdown .number.go h2 {
+  background: linear-gradient(45deg, #2ECC71, #27AE60);
+  font-size: 100px;
+  text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 15px 30px rgba(46, 204, 113, 0.3);
+  border-color: #2ECC71;
+  animation: pulseGo 0.5s ease-in-out;
+}
+
+@keyframes pulseGo {
+  0% {
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.countdown .number.active {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.countdown .number.fade-out {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1.5);
+}
+
+.countdown .number.go h2 {
+  background: linear-gradient(45deg, #2ECC71, #27AE60);
+  font-size: 90px;
+  text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 15px 30px rgba(46, 204, 113, 0.3);
+  border-color: #2ECC71;
+  animation: pulseGo 0.5s ease-in-out;
+}
+
+@keyframes pulseGo {
+  0% {
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hidden {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* sound toggle button */
+.sound-toggle {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  z-index: 2000;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.sound-toggle[aria-pressed="true"] {
+  background: linear-gradient(90deg,#2ECC71,#27AE60);
+}

@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  dev:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install --silent && npm run dev -- --host"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped
+
+
