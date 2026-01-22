@@ -14,18 +14,18 @@ Le projet suit une **architecture microservices** avec séparation claire des re
 
 ```mermaid
 graph TB
-    Client[Client Browser HTTPS:443]
-    Gateway[API Gateway - Nginx]
+    Client["Client Browser (HTTPS:443)"]
+    Gateway["API Gateway - Nginx"]
     
     Client --> Gateway
     
-    Gateway --> Frontend[Frontend Service :8443]
-    Gateway --> Auth[Authentication Service :5000]
-    Gateway --> UserMgmt[User Management :3000]
-    Gateway --> Game[Game Service :4000]
-    Gateway --> Tournament[Tournament Service :5500]
-    Gateway --> Spy[Spy Service :3003]
-    Gateway --> Chat[Chat Service :3000]
+    Gateway --> Frontend["Frontend Service (8443)"]
+    Gateway --> Auth["Authentication Service (5000)"]
+    Gateway --> UserMgmt["User Management (3000)"]
+    Gateway --> Game["Game Service (4000)"]
+    Gateway --> Tournament["Tournament Service (5500)"]
+    Gateway --> Spy["Spy Service (3003)"]
+    Gateway --> Chat["Chat Service (3000)"]
     
     Frontend -.WebSocket.-> Game
     Auth -.Verify.-> Gateway
@@ -629,22 +629,22 @@ Grâce à l'architecture microservices et JWT stateless, chaque service peut êt
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
-        Browser[Browser HTTPS:443]
+    subgraph ClientLayer["Client Layer"]
+        Browser["Browser (HTTPS:443)"]
     end
     
-    subgraph "Gateway Layer"
-        Nginx[Nginx API Gateway<br/>SSL Termination<br/>Auth Request]
+    subgraph GatewayLayer["Gateway Layer"]
+        Nginx["Nginx API Gateway"]
     end
     
-    subgraph "Frontend Layer"
-        Vite[Vite Dev Server :8443<br/>SPA TypeScript]
-        AuthUI[Auth Module]
-        GameUI[Game Module]
-        ChatUI[Chat Module]
-        ProfileUI[Profile Module]
-        TournamentUI[Tournament Module]
-        SpyUI[Spy Module]
+    subgraph FrontendLayer["Frontend Layer"]
+        Vite["Vite Dev Server (8443)"]
+        AuthUI["Auth Module"]
+        GameUI["Game Module"]
+        ChatUI["Chat Module"]
+        ProfileUI["Profile Module"]
+        TournamentUI["Tournament Module"]
+        SpyUI["Spy Module"]
         
         Vite --> AuthUI
         Vite --> GameUI
@@ -654,22 +654,22 @@ graph TB
         Vite --> SpyUI
     end
     
-    subgraph "Backend Services"
-        Auth[Auth Service :5000<br/>JWT, 2FA, OAuth]
-        UserMgmt[User Management :3000<br/>Profiles, History]
-        Game[Game Service :4000<br/>WebSocket, Physics]
-        Tournament[Tournament :5500<br/>Brackets, Matches]
-        Chat[Chat Service :3000<br/>Real-time Messages]
-        Spy[Spy Service :3003<br/>Activity Tracking]
+    subgraph BackendServices["Backend Services"]
+        Auth["Auth Service (5000)"]
+        UserMgmt["User Management (3000)"]
+        Game["Game Service (4000)"]
+        Tournament["Tournament (5500)"]
+        Chat["Chat Service (3000)"]
+        Spy["Spy Service (3003)"]
     end
     
-    subgraph "Data Layer"
-        AuthDB[(SQLite<br/>Users, Tokens)]
-        UserDB[(SQLite<br/>Profiles, Games)]
-        GameDB[(In-Memory<br/>Active Games)]
-        TournamentDB[(SQLite<br/>Tournaments)]
-        ChatDB[(SQLite<br/>Messages)]
-        SpyDB[(SQLite<br/>Activities)]
+    subgraph DataLayer["Data Layer"]
+        AuthDB[("SQLite Auth DB")]
+        UserDB[("SQLite User DB")]
+        GameDB[("In-Memory Games")]
+        TournamentDB[("SQLite Tournament DB")]
+        ChatDB[("SQLite Chat DB")]
+        SpyDB[("SQLite Spy DB")]
     end
     
     Browser --> Nginx
