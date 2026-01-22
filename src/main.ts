@@ -1,6 +1,7 @@
 import { Paddle } from './Paddle';
 import { PongBall } from './PongBall';
 import CountDown from './CountDown';
+import { io, Socket } from 'socket.io-client';
 
 console.debug(' main module loaded');
 
@@ -11,6 +12,7 @@ let gameStarted = false;
 let awaitingServe = false;
 let gameOver = false;
 let aiMode = false;
+let remoteMode = false; // New remote mode flag
 let leftScore = 0;
 let rightScore = 0;
 const winningScore = 5;
@@ -19,9 +21,13 @@ let rightPaddle: Paddle;
 let pongBall: PongBall;
 let countdown: CountDown;
 
+// Socket.io variables
+let socket: Socket;
+let playerIndex: number = -1; // 0 for left (host), 1 for right (client)
+
 export function initializeGame() {
     console.debug('Initializing game...');
-    
+
     // Create canvas dynamically with TypeScript
     const canvas = document.createElement('canvas');
     canvas.width = 800;
@@ -33,19 +39,17 @@ export function initializeGame() {
     canvas.style.margin = '0 auto';
     canvas.style.backgroundColor = 'white';
     canvas.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    
+
     // Append canvas to container
     const container = document.querySelector('.canvas-container') as HTMLElement;
     if (!container) {
         console.error('Canvas container not found');
-        console.log('Searching for .canvas-container...');
-        console.log('Available classes:', document.querySelectorAll('[class*="canvas"]'));
         return false;
     }
-    
+
     console.debug('Canvas container found, appending canvas');
     container.appendChild(canvas);
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         console.error('2D context not available');
@@ -56,9 +60,9 @@ export function initializeGame() {
     c = canvas as HTMLCanvasElement;
     ctxt = ctx as CanvasRenderingContext2D;
     gameStarted = false;
-    awaitingServe = false;
     gameOver = false;
     aiMode = false;
+    remoteMode = false;
     leftScore = 0;
     rightScore = 0;
     leftPaddle = new Paddle(c, ctxt, 0, (c.height - 100) / 2);
@@ -73,35 +77,109 @@ export function initializeGame() {
         pongBall.start();
     }
 
+    // Input handling
     window.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (!gameStarted) return;
-        if (e.key === 'w' || e.key === 'W') leftPaddle.moveUp();
-        if (e.key === 's' || e.key === 'S') leftPaddle.moveDown();
-        if (!aiMode) {
-            if (e.key === 'ArrowUp') rightPaddle.moveUp();
-            if (e.key === 'ArrowDown') rightPaddle.moveDown();
+        if (!gameStarted && !remoteMode) return; // Allow input even if game not strictly "started" in remote to move paddle? Actually wait for gameStart.
+        if (!gameStarted && remoteMode) return; // Wait for server start
+
+        // In remote mode, you only control YOUR paddle.
+        // Player 0 (Left): Controls Left Paddle (W/S)
+        // Player 1 (Right): Controls Right Paddle (ArrowUp/ArrowDown or W/S mapped to remote)
+
+        if (remoteMode) {
+            if (playerIndex === 0) {
+                if (e.key === 'w' || e.key === 'W') {
+                    leftPaddle.moveUp();
+                    emitPaddleMove();
+                }
+                if (e.key === 's' || e.key === 'S') {
+                    leftPaddle.moveDown();
+                    emitPaddleMove();
+                }
+            } else if (playerIndex === 1) {
+                // Map W/S or Arrows to "Right Paddle" movement for local player, but visually it is the right paddle
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+                    rightPaddle.moveUp();
+                    emitPaddleMove();
+                }
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+                    rightPaddle.moveDown();
+                    emitPaddleMove();
+                }
+            }
+        } else {
+            // Local modes
+            if (e.key === 'w' || e.key === 'W') leftPaddle.moveUp();
+            if (e.key === 's' || e.key === 'S') leftPaddle.moveDown();
+            if (!aiMode) {
+                if (e.key === 'ArrowUp') rightPaddle.moveUp();
+                if (e.key === 'ArrowDown') rightPaddle.moveDown();
+            }
         }
     });
 
     window.addEventListener('keyup', (e: KeyboardEvent) => {
-        if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S') leftPaddle.stop();
-        if (!aiMode) {
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') rightPaddle.stop();
+        // Stop logic
+        if (remoteMode) {
+            if (playerIndex === 0) {
+                if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S') {
+                    leftPaddle.stop();
+                    emitPaddleMove();
+                }
+            } else if (playerIndex === 1) {
+                if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    rightPaddle.stop();
+                    emitPaddleMove();
+                }
+            }
+        } else {
+            if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S') leftPaddle.stop();
+            if (!aiMode) {
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') rightPaddle.stop();
+            }
         }
     });
 
-    // Wire UI buttons to start the game in Friend or AI mode.
+    function emitPaddleMove() {
+        if (!socket) return;
+        // Send our paddle's Y position
+        const y = playerIndex === 0 ? leftPaddle.y : rightPaddle.y;
+        socket.emit('paddleMove', { y });
+    }
+
+    // Wire UI buttons
     const btnFriend = document.getElementById('btn-friend') as HTMLButtonElement | null;
     const btnAI = document.getElementById('btn-ai') as HTMLButtonElement | null;
+
+    // Create new Remote button dynamically if not exists, or assume we will add it to HTML.
+    // For now, let's look for it or create it.
+    let btnRemote = document.getElementById('btn-remote') as HTMLButtonElement | null;
+
+    if (!btnRemote) {
+        // Attempt to inject it next to btn-ai if possible, or just log.
+        // User plan said "Add a Remote button".
+        // Let's assume we modify HTML later, but for now we Can reuse code.
+        // We will create it via JS for convenience if not in HTML.
+        const controls = document.querySelector('.controls');
+        if (controls) {
+            btnRemote = document.createElement('button');
+            btnRemote.id = 'btn-remote';
+            btnRemote.className = 'btn';
+            btnRemote.textContent = 'Play Online';
+            controls.appendChild(btnRemote);
+        }
+    }
 
     function disableButtons() {
         if (btnFriend) btnFriend.disabled = true;
         if (btnAI) btnAI.disabled = true;
+        if (btnRemote) btnRemote.disabled = true;
     }
 
     if (btnFriend) {
         btnFriend.addEventListener('click', () => {
             aiMode = false;
+            remoteMode = false;
             disableButtons();
             countdown.start(startGame);
         });
@@ -109,8 +187,81 @@ export function initializeGame() {
     if (btnAI) {
         btnAI.addEventListener('click', () => {
             aiMode = true;
+            remoteMode = false;
             disableButtons();
             countdown.start(startGame);
+        });
+    }
+    if (btnRemote) {
+        btnRemote.addEventListener('click', () => {
+            aiMode = false;
+            remoteMode = true;
+            disableButtons();
+            initRemoteGame();
+        });
+    }
+
+    function initRemoteGame() {
+        console.log("Connecting to server...");
+        socket = io('http://localhost:3000'); // Assuming backend on 3000
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('joinGame');
+        });
+
+        socket.on('playerAssigned', (data: { playerIndex: number }) => {
+            console.log(`Assigned as Player ${data.playerIndex}`);
+            playerIndex = data.playerIndex;
+        });
+
+        socket.on('waitingForOpponent', () => {
+            console.log('Waiting for opponent...');
+            // Maybe show a UI "Waiting..." message
+        });
+
+        socket.on('gameStart', () => {
+            console.log('Remote game starting!');
+            countdown.start(() => {
+                if (gameOver) return;
+                gameStarted = true;
+                awaitingServe = false;
+                // Only Player 0 starts the ball physics locally,
+                // BUT we rely on updates. 
+                // Actually, let Player 0 drive physics and emit updates.
+                if (playerIndex === 0) {
+                    pongBall.start();
+                }
+            });
+        });
+
+        socket.on('opponentMove', (data: { y: number }) => {
+            // Update the OPPONENT'S paddle
+            if (playerIndex === 0) {
+                rightPaddle.y = data.y; // We are left, opponent is right
+            } else {
+                leftPaddle.y = data.y; // We are right, opponent is left
+            }
+        });
+
+        socket.on('ballUpdate', (data: { x: number, y: number, vx: number, vy: number }) => {
+            // If we are NOT the host (Player 0), we strictly follow the ball update
+            if (playerIndex !== 0) {
+                pongBall.x = data.x;
+                pongBall.y = data.y;
+                pongBall.incrementWidth = data.vx;
+                pongBall.incrementHeight = data.vy;
+            }
+        });
+
+        socket.on('scoreUpdate', (data: { left: number, right: number }) => {
+            leftScore = data.left;
+            rightScore = data.right;
+        });
+
+        socket.on('opponentDisconnected', () => {
+            alert('Opponent disconnected!');
+            location.reload();
         });
     }
 
@@ -119,10 +270,10 @@ export function initializeGame() {
 }
 
 export function animate() {
-    console.log(' Animating frame');
     requestAnimationFrame(animate);
     ctxt.clearRect(0, 0, c.width, c.height);
-    // If AI mode is enabled and the game has started, drive the right paddle toward the ball
+
+    // AI Logic (Only if AI mode)
     if (aiMode && gameStarted) {
         const paddleCenter = rightPaddle.y + rightPaddle.heightPaddle / 2;
         const diff = pongBall.y - paddleCenter;
@@ -133,6 +284,8 @@ export function animate() {
             rightPaddle.scroll = 0;
         }
     }
+
+    // Update paddles (physics/position update from local scroll)
     leftPaddle.update();
     rightPaddle.update();
 
@@ -140,32 +293,54 @@ export function animate() {
     drawScores();
 
     if (gameStarted) {
-        const scorer = pongBall.update(leftPaddle, rightPaddle);
-        if (scorer) {
-            // increment score
-            if (scorer === 'left') leftScore++;
-            else rightScore++;
+        // Physics Logic
+        // In local/AI mode: calculated locally.
+        // In Remote mode: 
+        //   - Player 0 calculates physics and sends updates.
+        //   - Player 1 just renders (and extrapolates if we were fancy, but for now just renders).
 
-            // center paddles
-            leftPaddle.y = (c.height - leftPaddle.heightPaddle) / 2;
-            rightPaddle.y = (c.height - rightPaddle.heightPaddle) / 2;
+        let shouldUpdatePhysics = true;
+        if (remoteMode && playerIndex !== 0) {
+            shouldUpdatePhysics = false; // Slave client
+        }
 
-            // check win
-            if (leftScore >= winningScore || rightScore >= winningScore) {
-                gameOver = true;
-                gameStarted = false;
-            } else {
-                // Reset ball position and speed, wait 0.5s, then serve
-                pongBall.resetPositionAndSpeed();
-                // temporarily pause game while waiting to serve
-                gameStarted = false;
-                awaitingServe = true;
-                setTimeout(() => {
-                    if (gameOver) return;
-                    pongBall.start();
-                    gameStarted = true;
-                    awaitingServe = false;
-                }, 500);
+        if (shouldUpdatePhysics) {
+            const scorer = pongBall.update(leftPaddle, rightPaddle);
+            if (remoteMode && playerIndex === 0) {
+                // Emit ball state constantly or periodically
+                socket.emit('ballUpdate', {
+                    x: pongBall.x,
+                    y: pongBall.y,
+                    vx: pongBall.incrementWidth,
+                    vy: pongBall.incrementHeight
+                });
+            }
+
+            if (scorer) {
+                if (scorer === 'left') leftScore++;
+                else rightScore++;
+
+                if (remoteMode && playerIndex === 0) {
+                    socket.emit('scoreUpdate', { left: leftScore, right: rightScore });
+                }
+
+                leftPaddle.y = (c.height - leftPaddle.heightPaddle) / 2;
+                rightPaddle.y = (c.height - rightPaddle.heightPaddle) / 2;
+
+                if (leftScore >= winningScore || rightScore >= winningScore) {
+                    gameOver = true;
+                    gameStarted = false;
+                } else {
+                    pongBall.resetPositionAndSpeed();
+                    gameStarted = false;
+                    setTimeout(() => {
+                        if (gameOver) return;
+                        if (!remoteMode || playerIndex === 0) {
+                            pongBall.start();
+                        }
+                        gameStarted = true;
+                    }, 500);
+                }
             }
         }
     }
@@ -184,9 +359,7 @@ function drawScores() {
     ctxt.fillStyle = 'black';
     ctxt.font = '28px sans-serif';
     ctxt.textAlign = 'center';
-    // left score
     ctxt.fillText(String(leftScore), c.width * 0.25, 40);
-    // right score
     ctxt.fillText(String(rightScore), c.width * 0.75, 40);
 }
 
@@ -206,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the game immediately when the page loads
     const ok = initializeGame();
     if (ok) {
-        // start the animation loop
         animate();
     } else {
         console.error('Failed to initialize game');

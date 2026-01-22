@@ -14,4 +14,13 @@ services:
       - CHOKIDAR_USEPOLLING=true
     restart: unless-stopped
 
-
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install --silent && npm run server"
+    restart: unless-stopped
